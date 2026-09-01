@@ -29,28 +29,46 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
     final d = widget.destination;
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        foregroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: widget.onBack,
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.bookmark_border, color: Color(0xFFFFC107)),
+            onPressed: () {},
+          ),
+        ],
+      ),
       body: SafeArea(
+        top: false,
         child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeroImage(d),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildTabs(),
-                    const SizedBox(height: 16),
-                    _buildInfoRow(d),
-                    const SizedBox(height: 16),
-                    Text(
-                      d.description,
-                      style: const TextStyle(fontSize: 13, height: 1.5, color: Colors.black87),
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 16),
+              Text(
+                d.name,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
               ),
+              const SizedBox(height: 16),
+              _buildTabs(),
+              const SizedBox(height: 16),
+              _buildInfoRow(d),
+              const SizedBox(height: 16),
+              Text(
+                d.description,
+                style: const TextStyle(fontSize: 13, height: 1.5, color: Colors.black87),
+              ),
+              // Extra space so content never sits under the bottom price bar.
+              const SizedBox(height: 90),
             ],
           ),
         ),
@@ -60,86 +78,20 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
   }
 
   Widget _buildHeroImage(Destination d) {
-    return SizedBox(
-      height: 320,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
-              child: buildDestinationImage(d.imageAsset, height: 320),
-            ),
-          ),
-          Positioned(
-            top: 16,
-            left: 16,
-            child: _circleIconButton(
-              icon: Icons.arrow_back,
-              onTap: widget.onBack,
-              bg: Colors.white,
-              iconColor: Colors.black,
-            ),
-          ),
-          Positioned(
-            top: 16,
-            right: 16,
-            child: _circleIconButton(
-              icon: Icons.bookmark_border,
-              onTap: () {},
-              bg: const Color(0xFFFFC107),
-              iconColor: Colors.white,
-            ),
-          ),
-          Positioned(
-            left: 20,
-            right: 20,
-            bottom: 60,
-            child: Text(
-              d.name,
-              style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
-            ),
-          ),
-          Positioned(
-            left: 20,
-            bottom: 16,
-            child: Row(
-              children: List.generate(3, (index) {
-                return Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: buildDestinationImage(d.imageAsset, height: 44, width: 44),
-                );
-              }),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _circleIconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    required Color bg,
-    required Color iconColor,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, color: iconColor, size: 18),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        buildDestinationImage(d.imageAsset, height: 200, width: double.infinity),
+        const SizedBox(height: 10),
+        Row(
+          children: List.generate(3, (index) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: buildDestinationImage(d.imageAsset, height: 50, width: 50),
+            );
+          }),
+        ),
+      ],
     );
   }
 
@@ -207,12 +159,15 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: const BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, -2))],
+        // A plain top border instead of a blurred BoxShadow - much cheaper
+        // to composite on lower-end GPUs.
+        border: Border(top: BorderSide(color: Color(0xFFE5E5E5), width: 1)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('Trip Price', style: TextStyle(color: Colors.grey, fontSize: 12)),
@@ -224,6 +179,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
             onPressed: () {},
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFFC107),
+              elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
