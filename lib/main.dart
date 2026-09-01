@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'welcome.dart';
+import 'discover.dart';
+import 'destinationDetail.dart';
 
 void main() {
   runApp(const MyApp());
@@ -7,116 +10,178 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    return MaterialApp.router(
+      title: 'Wanderly',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(useMaterial3: true, fontFamily: 'Roboto'),
+      routerDelegate: AppRouterDelegate(),
+      routeInformationParser: AppRouteInformationParser(),
+      backButtonDispatcher: RootBackButtonDispatcher(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+// ============================================================
+// 1. Route path definitions
+//    These are the "app states" Navigator 2.0 moves between.
+// ============================================================
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
+abstract class AppRoutePath {
+  const AppRoutePath();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class WelcomeRoutePath extends AppRoutePath {
+  const WelcomeRoutePath();
+}
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+class DiscoverRoutePath extends AppRoutePath {
+  const DiscoverRoutePath();
+}
+
+class DetailRoutePath extends AppRoutePath {
+  final String destinationId;
+  const DetailRoutePath(this.destinationId);
+}
+
+// ============================================================
+// 2. RouteInformationParser
+//    Converts a URL/deep-link (RouteInformation) into an
+//    AppRoutePath, and back again. This is what lets the app
+//    understand a link like /destination/kungliga-slottet.
+// ============================================================
+
+class AppRouteInformationParser extends RouteInformationParser<AppRoutePath> {
+  @override
+  Future<AppRoutePath> parseRouteInformation(RouteInformation routeInformation) async {
+    final uri = routeInformation.uri;
+
+    if (uri.pathSegments.isEmpty) {
+      return const WelcomeRoutePath();
+    }
+
+    if (uri.pathSegments.length == 1 && uri.pathSegments[0] == 'discover') {
+      return const DiscoverRoutePath();
+    }
+
+    if (uri.pathSegments.length == 2 && uri.pathSegments[0] == 'destination') {
+      return DetailRoutePath(uri.pathSegments[1]);
+    }
+
+    // Unknown path -> fall back to welcome.
+    return const WelcomeRoutePath();
+  }
+
+  @override
+  RouteInformation restoreRouteInformation(AppRoutePath configuration) {
+    if (configuration is DiscoverRoutePath) {
+      return RouteInformation(uri: Uri.parse('/discover'));
+    }
+    if (configuration is DetailRoutePath) {
+      return RouteInformation(uri: Uri.parse('/destination/${configuration.destinationId}'));
+    }
+    // WelcomeRoutePath (and anything else) maps to '/'.
+    return RouteInformation(uri: Uri.parse('/'));
+  }
+}
+
+// ============================================================
+// 3. RouterDelegate
+//    Owns the current AppRoutePath and builds the Navigator's
+//    page stack from it. All in-app navigation goes through the
+//    goTo... / goBack methods below, which mutate _currentPath
+//    and call notifyListeners() to trigger a rebuild.
+// ============================================================
+
+class AppRouterDelegate extends RouterDelegate<AppRoutePath>
+    with ChangeNotifier, PopNavigatorRouterDelegateMixin<AppRoutePath> {
+  @override
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  AppRoutePath _currentPath = const WelcomeRoutePath();
+  Destination? _selectedDestination;
+
+  @override
+  AppRoutePath get currentConfiguration => _currentPath;
+
+  // ---- Navigation actions called from the UI screens ----
+
+  void goToDiscover() {
+    _currentPath = const DiscoverRoutePath();
+    notifyListeners();
+  }
+
+  void goToDetail(Destination destination) {
+    _selectedDestination = destination;
+    _currentPath = DetailRoutePath(destination.id);
+    notifyListeners();
+  }
+
+  void goBack() {
+    if (_currentPath is DetailRoutePath) {
+      _currentPath = const DiscoverRoutePath();
+    } else if (_currentPath is DiscoverRoutePath) {
+      _currentPath = const WelcomeRoutePath();
+    }
+    notifyListeners();
+  }
+
+  // ---- Required by RouterDelegate ----
+
+  @override
+  Future<void> setNewRoutePath(AppRoutePath configuration) async {
+    _currentPath = configuration;
+    if (configuration is DetailRoutePath && _selectedDestination == null) {
+      _selectedDestination = sampleDestinations.firstWhere(
+        (d) => d.id == configuration.destinationId,
+        orElse: () => sampleDestinations.first,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+    return Navigator(
+      key: navigatorKey,
+      onPopPage: (route, result) {
+        if (!route.didPop(result)) return false;
+        goBack();
+        return true;
+      },
+      pages: _buildPages(),
+    );
+  }
+
+  List<Page> _buildPages() {
+    final pages = <Page>[
+      MaterialPage(
+        key: const ValueKey('WelcomePage'),
+        child: WelcomeScreen(onGetStarted: goToDiscover),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+    ];
+
+    if (_currentPath is DiscoverRoutePath || _currentPath is DetailRoutePath) {
+      pages.add(
+        MaterialPage(
+          key: const ValueKey('DiscoverPage'),
+          child: DiscoverScreen(onSelectDestination: goToDetail),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
-    );
+      );
+    }
+
+    if (_currentPath is DetailRoutePath && _selectedDestination != null) {
+      pages.add(
+        MaterialPage(
+          key: ValueKey('DetailPage-${_selectedDestination!.id}'),
+          child: DestinationDetailScreen(
+            destination: _selectedDestination!,
+            onBack: goBack,
+          ),
+        ),
+      );
+    }
+
+    return pages;
   }
 }
